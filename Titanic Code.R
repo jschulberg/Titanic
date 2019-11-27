@@ -6,6 +6,9 @@ library(stats)
 import <- read.csv("train.csv")
 test <- read.csv("test.csv")
 
+# sample line of code to see hsitory
+x <- 1
+
 # set the seed
 set.seed(123)
 
