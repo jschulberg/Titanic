@@ -10,41 +10,65 @@ test <- read.csv("test.csv")
 
 
 
-
 ############################
 ###### Data Wrangling ######
 ############################
-# convert Sex to categorical numbers
-import$ind_sex[import$Sex == 'female'] <- 0
-import$ind_sex[import$Sex == 'male'] <- 1
-import$ind_sex <- as.factor(import$ind_sex)
 
-# take the ceiling of all the ages so we get rid of the half ages
-import$Age <- ceiling(import$Age)
+# make sure training and testing data have the same number of columns
+test <- test %>%
+  mutate(Survived = NA) %>%
+  mutate(set = "test")
+
+import <- import %>%
+  mutate(set = "train")
+
+# bring them both together so they have the same structure
+data <- rbind(import,test)
+
+
+# convert Sex to categorical numbers
+data$ind_sex[data$Sex == 'female'] <- 0
+data$ind_sex[data$Sex == 'male'] <- 1
+data$ind_sex <- as.factor(data$ind_sex)
 
 # convert age to a standardized value
-mean_age <- mean(import$Age, na.rm = T)
-sd_age <- sd(import$Age, na.rm = T)
-import$ind_age <- (import$Age - mean_age)/sd_age
+mean_age <- mean(data$Age, na.rm = T)
+sd_age <- sd(data$Age, na.rm = T)
+
+# because there are a lot of null ages, let's replace these with a random sample within
+# one standard deviation of the mean
+data$Age[is.na(data$Age)] <- sample(mean_age-sd_age:mean_age+sd_age, nrow(data[is.na(data$Age),]), replace = T)
+
+# standardize all the ages
+data$ind_age <- (data$Age - mean_age)/sd_age
+
+# take the ceiling of all the ages so we get rid of the half ages
+data$Age <- ceiling(data$Age)
 
 # convert Pclass to a factor
-import$Pclass <- as.factor(import$Pclass)
+data$Pclass <- as.factor(data$Pclass)
 
 # for cabin we only care about the floor they were on, which is the first letter
-import$ind_cabin <- substr(import$Cabin, 1, 1)
-import$ind_cabin[import$ind_cabin == ""] <- "Unknown"
-plot(prop.table(table(import$ind_cabin)))
+data$ind_cabin <- substr(data$Cabin, 1, 1)
+data$ind_cabin[data$ind_cabin == ""] <- "Unknown"
+plot(prop.table(table(data$ind_cabin)))
 
-import$ind_cabin <- as.factor(import$ind_cabin)
+data$ind_cabin <- as.factor(data$ind_cabin)
 
 # create family size column
-import <- import %>%
+data <- data %>%
   mutate(family_size = 1 + SibSp + Parch)
-import$family_size <- as.factor(import$family_size)
+data$family_size <- as.factor(data$family_size)
 
-import$Survived <- as.factor(import$Survived)
+data$Survived <- as.factor(data$Survived)
 
 
+# now split our training and testing apart
+import <- data %>%
+  filter(set == "train")
+
+test <- data %>%
+  filter(set == "test")
 
 ############################
 #######     EDA     ########
@@ -115,11 +139,11 @@ hist(dead$Parch)
 # let's see if this changes at all for kids, which I suspect is the case
 survived %>%
   filter(Age < 28.5) %>% # filter less than the mean
-  {prop.table(table(.$Parch))} # 80% have less than 2
+  {prop.table(table(.$family_size))} # 80% have less than 2
 
 survived %>%
   filter(Age > 28.5) %>% # filter less than the mean
-  {prop.table(table(.$Parch))} # 92% have less than 2
+  {prop.table(table(.$family_size))} # 92% have less than 2
 
 
 # Class of passenger aboard the Titanic is not a good indicator by 
@@ -167,18 +191,10 @@ val <- import[!(import$PassengerId %in% train$PassengerId),]
 # only bring in columns that we can model on
 str(train)
 train <- train %>%
-  select(Survived, Pclass, ind_sex, ind_cabin, family_size)
+  # select the columns we think are helpful
+  select(Survived, Pclass, ind_age, ind_sex, ind_cabin, family_size)
 
-
-# ensure that we pulled enough data
-if (nrow(val) + nrow(train) == nrow(import) ) {
-  "Looks good"
-} else {
-  "Hold up wait a minute"
-}
-
-
-fit_1 <- lm(train$Survived ~ train$Age)
+fit_1 <- lm(train$Survived ~ train$ind_age)
 summary(fit_1) # gives a high p value of .1841 -- probably not a good variable to use
 
 fit_2 <- lm(train$Survived ~ train$Fare)
@@ -201,10 +217,36 @@ pred_train <- predict(model1, train, type = "class")
 # Checking classification accuracy
 table(pred_train, train$Survived)  
 
+# find the overall accuracy by using the mean
+mean(pred_train == train$Survived) # accuracy comes out to 88.9%
+
 # Predicting on validation set
 pred_val <- predict(model1, val, type = "class")
 # Checking classification accuracy
 table(pred_val, val$Survived)  
 
 # find the overall accuracy by using the mean
-mean(pred_val == val$Survived) # accuracy comes out to 79.9%
+mean(pred_val == val$Survived) # accuracy comes out to 81.4%
+
+
+# Predicting on testing set
+pred_test <- predict(model1, test, type = "class")
+
+# bring the results in as our "Survived" column
+test$Survived <- pred_test
+
+# Checking classification accuracy
+prop.table(table(test$Survived))
+
+
+#### Final Output ####
+results <- test %>%
+  arrange(PassengerId)
+
+# we only need the id and survived column predictor in the end
+submission <- results %>%
+  select(PassengerId, Survived)
+
+# write our final output
+write.csv(submission, "Submission3.csv")
+
