@@ -194,6 +194,8 @@ train <- train %>%
   # select the columns we think are helpful
   select(Survived, Pclass, ind_age, ind_sex, ind_cabin, family_size)
 
+# train$Survived <- as.numeric(train$Survived)
+# train$ind_age <- as.numeric(train$ind_age)
 fit_1 <- lm(train$Survived ~ train$ind_age)
 summary(fit_1) # gives a high p value of .1841 -- probably not a good variable to use
 
@@ -204,12 +206,6 @@ summary(fit_2) # gives a low p-value (8.32e-13) but the r^2 value is veryyy low
 # The class errors seem to be pretty large as well. I'm not sure this worked as well as
 # I would have liked.
 (model1 <- randomForest(Survived ~ ., data = train, importance = TRUE, proximity = TRUE))
-
-# Let's try out our second randomForest where we have tried 4 variables at each split.
-# This gives an OOB estimate of error rate 22%. The class errors seem to be even
-# larger than the previous model. I'm not sure this worked as well as I would have liked.
-(model2 <- randomForest(Survived ~ ., data = train, importance = TRUE, mtry = 4))
-
 
 # let's check how this worked on our train set
 # Predicting on train set
