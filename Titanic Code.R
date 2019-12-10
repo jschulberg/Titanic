@@ -1,9 +1,12 @@
 # install.packages("tidyverse")
 # install.packages("randomForest")
+# install.packages("ResourceSelection")
 library(randomForest)
 library(tidyverse)
 library(ggplot2)
 library(stats)
+library(modelr)
+library(ResourceSelection)
 
 import <- read.csv("train.csv")
 test <- read.csv("test.csv")
@@ -233,6 +236,33 @@ test$Survived <- pred_test
 
 # Checking classification accuracy
 prop.table(table(test$Survived))
+
+
+
+
+# I just read about logistic regression, which seems like it could be used here
+# Let's try it out!
+# first convert the family size to a numeric
+train$family_size <- as.numeric(train$family_size)
+
+model2 <- glm(Survived ~ ., data = train, family = "binomial")
+# let's see how we did
+summary(model2)
+
+
+# Let's check this out
+plot_model2 <- ggplot(data = train, aes(x = family_size, y = Survived)) +
+  geom_point()
+
+plot_model2
+
+# let's see how we did by using the Hosmer and Lemeshow goodness of fit (GOF) test
+hoslem.test(val_model2$survived, fitted(model2))
+
+
+pred_model2 <- predict(model2, val)
+val_model2 <- val %>%
+  add_predictions(model2)
 
 
 #### Final Output ####
