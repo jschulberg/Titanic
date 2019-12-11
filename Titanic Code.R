@@ -1,21 +1,39 @@
 # install.packages("tidyverse")
 # install.packages("randomForest")
 # install.packages("ResourceSelection")
+# install.packages("Amelia")
+# install.packages("extrafont")
 library(randomForest)
 library(tidyverse)
 library(ggplot2)
 library(stats)
 library(modelr)
 library(ResourceSelection)
+library(Amelia)
+library(extrafont)
+font_import()
+loadfonts(device = "win")
 
-import <- read.csv("train.csv")
-test <- read.csv("test.csv")
+
+
+import <- read.csv("train.csv", na.strings = c(""))
+test <- read.csv("test.csv", na.strings = c(""))
 
 
 
 ############################
 ###### Data Wrangling ######
 ############################
+
+# how many nulls do we have?
+sapply(import, function(x) sum(is.na(x)))
+
+# how many values are in each column?
+sapply(import, function(x) length(unique(x)))
+
+# map our missing values
+missmap(import, main = "Missing values vs observed")
+
 
 # make sure training and testing data have the same number of columns
 test <- test %>%
@@ -61,7 +79,7 @@ data$ind_cabin <- as.factor(data$ind_cabin)
 # create family size column
 data <- data %>%
   mutate(family_size = 1 + SibSp + Parch)
-data$family_size <- as.factor(data$family_size)
+data$family_size <- as.numeric(data$family_size)
 
 data$Survived <- as.factor(data$Survived)
 
@@ -148,6 +166,12 @@ survived %>%
   filter(Age > 28.5) %>% # filter less than the mean
   {prop.table(table(.$family_size))} # 92% have less than 2
 
+# Let's check this out
+plot_model2 <- ggplot(data = import, aes(x = family_size, y = Survived)) +
+  geom_point()
+
+plot_model2
+
 
 # Class of passenger aboard the Titanic is not a good indicator by 
 # itself because 90% of people generally have less than 2 parents/children aboard
@@ -176,6 +200,17 @@ prop.table(table(dead$family_size)) # 82% of dead have family size <3
 hist(dead$family_size) 
 
 
+# It appears that more of the people who survived embarked from C
+prop.table(table(import$Embarked)) 
+prop.table(table(survived$Embarked)) 
+prop.table(table(dead$Embarked))
+ggplot(data = import, aes(x = Embarked)) + 
+  geom_bar(fill = "slateblue2") +
+  labs(title = "Breakout of Embarcation Points", x = "Embarcation Point", 
+       y = "Number of Passengers") +
+  theme(plot.title = element_text(face = "bold", family = "Palatino", size = 12)) +
+  coord_flip()
+  
 
 ############################
 ######     Model     #######
@@ -195,7 +230,7 @@ val <- import[!(import$PassengerId %in% train$PassengerId),]
 str(train)
 train <- train %>%
   # select the columns we think are helpful
-  select(Survived, Pclass, ind_age, ind_sex, ind_cabin, family_size)
+  select(Survived, Pclass, ind_age, ind_sex, family_size, Embarked)
 
 # train$Survived <- as.numeric(train$Survived)
 # train$ind_age <- as.numeric(train$ind_age)
@@ -209,6 +244,7 @@ summary(fit_2) # gives a low p-value (8.32e-13) but the r^2 value is veryyy low
 # The class errors seem to be pretty large as well. I'm not sure this worked as well as
 # I would have liked.
 (model1 <- randomForest(Survived ~ ., data = train, importance = TRUE, proximity = TRUE))
+summary(model1)
 
 # let's check how this worked on our train set
 # Predicting on train set
@@ -225,7 +261,7 @@ pred_val <- predict(model1, val, type = "class")
 table(pred_val, val$Survived)  
 
 # find the overall accuracy by using the mean
-mean(pred_val == val$Survived) # accuracy comes out to 81.4%
+mean(pred_val == val$Survived, na.rm = T) # accuracy comes out to 81.9%
 
 
 # Predicting on testing set
@@ -237,32 +273,17 @@ test$Survived <- pred_test
 # Checking classification accuracy
 prop.table(table(test$Survived))
 
-
-
-
-# I just read about logistic regression, which seems like it could be used here
-# Let's try it out!
-# first convert the family size to a numeric
-train$family_size <- as.numeric(train$family_size)
-
+# run a logistic regression on our training data
 model2 <- glm(Survived ~ ., data = train, family = "binomial")
 # let's see how we did
 summary(model2)
 
-
-# Let's check this out
-plot_model2 <- ggplot(data = train, aes(x = family_size, y = Survived)) +
-  geom_point()
-
-plot_model2
-
-# let's see how we did by using the Hosmer and Lemeshow goodness of fit (GOF) test
-hoslem.test(val_model2$survived, fitted(model2))
-
-
 pred_model2 <- predict(model2, val)
 val_model2 <- val %>%
   add_predictions(model2)
+
+# let's see how we did by using the Hosmer and Lemeshow goodness of fit (GOF) test
+hoslem.test(val_model2$survived, fitted(model2))
 
 
 #### Final Output ####
