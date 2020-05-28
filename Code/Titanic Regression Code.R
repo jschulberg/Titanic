@@ -109,12 +109,6 @@ set.seed(123)
 titanic_logmod <- glm(Survived ~ Sex, data = titanic_prepped, family = "binomial")
 # let's see how we did
 summary(titanic_logmod)
-titanic_logmod$coefficients
-
-# What do these coefficients even mean? Well, if we exponentiate the coefficients,
-# we get something a bit more interpretable.
-exp(titanic_logmod$coefficients[1])
-exp(titanic_logmod$coefficients[2])
 
 # From this model, we can see that the intercept is .69. This represents the log-odds
 # of a female surviving on the Titanic. The results of logistic
