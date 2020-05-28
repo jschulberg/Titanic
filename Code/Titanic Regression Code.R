@@ -131,3 +131,27 @@ exp(titanic_logmod$coefficients[2])
 # male survives is 16.7%. This makes sense because, at least in the movie, they tended
 # to put women and children on life boats. If we brought in age too, I'd expect that most
 # of the males who survived were young (children).
+
+# Let's save our results so we can visualize them
+survival_rates <- tibble(gender = c("Male", "Female"),
+                         rate = c(male_survival, female_survival))
+# Viz Time
+ggplot(survival_rates, aes(x = gender, y = 100*rate, group = 1), label = rate) +
+  # Let's make it a column graph and change the color
+  geom_col(fill = "slateblue2") +
+  # Add the rounded text labels in so it's easier to read
+  geom_label(label = paste(100*round(survival_rates$rate, 3), "%", sep = "")) +
+  # Change the theme to classic
+  theme_classic() +
+  # Force the axes to be 0 to 100
+  ylim(0, 100) + 
+  # Let's change the names of the axes and title
+  xlab("Gender") +
+  ylab("Probability of Survival (%)") +
+  labs(title = "Probability of Surviving the Fatal Titanic",
+       subtitle = "Probabilistic results, broken out by gender, are\ncalculated using a logistic regression model") +
+  # format our title and subtitle
+  theme(plot.title = element_text(hjust = 0, color = "slateblue4"),
+        plot.subtitle = element_text(color = "slateblue1", size = 10)) +
+  # flip the axes
+  coord_flip()
